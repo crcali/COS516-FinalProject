@@ -19,7 +19,7 @@ define_language! {
         "sll" = Sll([Id; 3]),     // (sll dest src shift)
         "srl" = Srl([Id; 3]),     // (srl dest src shift)
         "lui" = Lui([Id; 2]),     // (lui dest imm)
-        "mov" = Move([Id; 2]),    // (mov dest src)
+        "mov" = Mov([Id; 2]),    // (mov dest src)
         "mfhi" = Mfhi(Id),        // (mfhi dest)
         "mflo" = Mflo(Id),        // (mflo dest)
 
@@ -68,16 +68,16 @@ fn main() -> io::Result<()> {
 
     // Define rewrite rules for optimization
     let rules: &[Rewrite<MipsLang, ()>] = &[
-        rw!("add-zero"; "(add ?dest ?src zero)" => "(move ?dest ?src)"),
-        rw!("add-zero-comm"; "(add ?dest zero ?src)" => "(move ?dest ?src)"),
-        rw!("addi-zero"; "(addi ?dest ?src 0)" => "(move ?dest ?src)"),
-        rw!("sub-zero"; "(sub ?dest ?src zero)" => "(move ?dest ?src)"),
+        rw!("add-zero"; "(add ?dest ?src zero)" => "(mov ?dest ?src)"),
+        rw!("add-zero-comm"; "(add ?dest zero ?src)" => "(mov ?dest ?src)"),
+        rw!("addi-zero"; "(addi ?dest ?src 0)" => "(mov ?dest ?src)"),
+        rw!("sub-zero"; "(sub ?dest ?src zero)" => "(mov ?dest ?src)"),
         rw!("mul-two"; "(mul ?dest ?src 2)" => "(sll ?dest ?src 1)"),
-        rw!("sll-zero"; "(sll ?dest ?src 0)" => "(move ?dest ?src)"),
-        rw!("move-to-self"; "(move ?dest ?dest)" => "nop"),
+        rw!("sll-zero"; "(sll ?dest ?src 0)" => "(mov ?dest ?src)"),
+        rw!("mov-to-self"; "(mov ?dest ?dest)" => "nop"),
         rw!("addi-zero-src"; "(addi ?dest zero ?imm)" => "(li ?dest ?imm)"),
-        rw!("and-minus-one"; "(and ?dest ?src -1)" => "(move ?dest ?src)"),
-        rw!("or-zero"; "(or ?dest ?src zero)" => "(move ?dest ?src)"),
+        rw!("and-minus-one"; "(and ?dest ?src -1)" => "(mov ?dest ?src)"),
+        rw!("or-zero"; "(or ?dest ?src zero)" => "(mov ?dest ?src)"),
         rw!("andi-zero"; "(andi ?dest ?src 0)" => "(li ?dest 0)"),
         rw!("slt-same"; "(slt ?dest ?src ?src)" => "(li ?dest 0)"),
     ];

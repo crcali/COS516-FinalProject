@@ -5,5 +5,5 @@
     (sub t5 t6 zero)
     (mul t7 t8 2)
     (sll t9 t10 0)
-    (move s0 s0)
+    (mov s0 s0)
 )
