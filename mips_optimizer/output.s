@@ -1,1 +1,1 @@
-(seq (add t0 t1 t2) nop (mov t3 t4) (mov t5 t6) (mul t7 t8 2) (mov t9 t10) nop)
+(seq (mov t0 t1) (mov t2 t3) (mul t4 t5 2) (div t6 t7 4) (mov t8 t9) nop)
