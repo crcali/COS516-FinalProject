@@ -1,1 +1,1 @@
-(seq (mov t0 t1) (mov t2 t3) (mul t4 t5 2) (div t6 t7 4) (mov t8 t9) nop)
+(seq (and x1 x2 x3) (or x4 x5 x6) (xor x7 x8 x8) (xor x9 x10 x11) (not x12 x13) (sll x14 x15 0) (srl x16 x17 1) (sra x18 x19 0) (sll x20 x21 33) (add x22 x23 0) (sub x24 x25 0) (addi x26 x27 0) (mul x28 x29 0) (div x30 x31 4) (rem x32 x33 8) (dec x34 x35) (inc x36 x37) (neg x38 x39) (lw x40 x41) (sw x42 x43) nop nop (jal zero label1) nop (lui x50 0) (seq (addi x51 x52 0) nop (mul x53 x54 2) (div x55 x56 8) (or x57 x58 0)))

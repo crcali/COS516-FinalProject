@@ -2,64 +2,70 @@ use egg::{define_language, rewrite as rw, *};
 use std::fs;
 use std::io::{self, Write};
 
-// Define the MIPS DSL with expanded instructions
+// Define the RISC-V DSL with expanded instructions
 define_language! {
-    enum MipsLang {
+    enum RiscvLang {
         // Arithmetic Instructions
         "add" = Add([Id; 3]),     // (add dest src1 src2)
-        "addi" = Addi([Id; 3]),   // (addi dest src imm)
         "sub" = Sub([Id; 3]),     // (sub dest src1 src2)
-        "subi" = Subi([Id; 3]),   // (subi dest src imm)
         "mul" = Mul([Id; 3]),     // (mul dest src1 src2)
         "div" = Div([Id; 3]),     // (div dest src1 src2)
-        "slt" = Slt([Id; 3]),     // (slt dest src1 src2)
-        "slti" = Slti([Id; 3]),   // (slti dest src imm)
-        "and" = And([Id; 3]),     // (and dest src1 src2)
-        "andi" = Andi([Id; 3]),   // (andi dest src imm)
-        "or" = Or([Id; 3]),       // (or dest src1 src2)
-        "ori" = Ori([Id; 3]),     // (ori dest src imm)
-        "xor" = Xor([Id; 3]),     // (xor dest src1 src2)
-        "xori" = Xori([Id; 3]),   // (xori dest src imm)
-        "nor" = Nor([Id; 3]),     // (nor dest src1 src2)
+        "rem" = Rem([Id; 3]),     // (rem dest src1 src2)
         "sll" = Sll([Id; 3]),     // (sll dest src shift)
         "srl" = Srl([Id; 3]),     // (srl dest src shift)
         "sra" = Sra([Id; 3]),     // (sra dest src shift)
-        "lui" = Lui([Id; 2]),     // (lui dest imm)
-        "mov" = Mov([Id; 2]),     // (mov dest src)
-        "mfhi" = Mfhi(Id),        // (mfhi dest)
-        "mflo" = Mflo(Id),        // (mflo dest)
-        "not" = Not([Id; 2]),     // (not dest src) - Added 'not' instruction
+        "and" = And([Id; 3]),     // (and dest src1 src2)
+        "or" = Or([Id; 3]),       // (or dest src1 src2)
+        "xor" = Xor([Id; 3]),     // (xor dest src1 src2)
+        "slt" = Slt([Id; 3]),     // (slt dest src1 src2)
+        "sltu" = Sltu([Id; 3]),   // (sltu dest src1 src2)
 
-        // Data Transfer Instructions
-        "lw" = Lw([Id; 2]),       // (lw dest addr)
-        "sw" = Sw([Id; 2]),       // (sw src addr)
-        "lb" = Lb([Id; 2]),       // (lb dest addr)
-        "sb" = Sb([Id; 2]),       // (sb src addr)
-        "li" = Li([Id; 2]),       // (li dest imm)
-        "la" = La([Id; 2]),       // (la dest label)
+        // Immediate Instructions
+        "addi" = Addi([Id; 3]),   // (addi dest src imm)
+        "andi" = Andi([Id; 3]),   // (andi dest src imm)
+        "ori" = Ori([Id; 3]),     // (ori dest src imm)
+        "xori" = Xori([Id; 3]),   // (xori dest src imm)
+        "slti" = Slti([Id; 3]),   // (slti dest src imm)
+        "sltiu" = Sltiu([Id; 3]), // (sltiu dest src imm)
+        "lui" = Lui([Id; 2]),     // (lui dest imm)
+        "auipc" = Auipc([Id; 2]), // (auipc dest imm)
 
         // Branch Instructions
         "beq" = Beq([Id; 3]),     // (beq src1 src2 label)
         "bne" = Bne([Id; 3]),     // (bne src1 src2 label)
-        "bgt" = Bgt([Id; 3]),     // (bgt src1 src2 label)
-        "bge" = Bge([Id; 3]),     // (bge src1 src2 label)
         "blt" = Blt([Id; 3]),     // (blt src1 src2 label)
-        "ble" = Ble([Id; 3]),     // (ble src1 src2 label)
-        "j" = Jmp(Id),            // (j label)
-        "jr" = Jr(Id),            // (jr src)
-        "jal" = Jal(Id),          // (jal label)
+        "bge" = Bge([Id; 3]),     // (bge src1 src2 label)
+        "bltu" = Bltu([Id; 3]),   // (bltu src1 src2 label)
+        "bgeu" = Bgeu([Id; 3]),   // (bgeu src1 src2 label)
 
-        // System Calls
-        "syscall" = Syscall,
+        // Jump Instructions
+        "jal" = Jal([Id; 2]),     // (jal dest label)
+        "jalr" = Jalr([Id; 2]),   // (jalr dest src)
+
+        // Load and Store Instructions
+        "lw" = Lw([Id; 2]),       // (lw dest address)
+        "sw" = Sw([Id; 2]),       // (sw src address)
+
+        // Memory Addressing
+        "mem" = Mem([Id; 2]),     // (mem base offset)
+
+        // Pseudo-instructions
+        "neg" = Neg([Id; 2]),     // (neg dest src)
+        "not" = Not([Id; 2]),     // (not dest src)
+        "inc" = Inc([Id; 2]),     // (inc dest src)
+        "dec" = Dec([Id; 2]),     // (dec dest src)
+        "move" = Move([Id; 2]),   // (move dest src)
+        "nop" = Nop,              // (nop)
+
+        // Unary Minus Operator
+        "-" = NegOp([Id; 1]),     // Unary minus operator for negative numbers
 
         // Operands
         Var(Symbol),              // Registers or labels
-        "zero" = Zero,            // Zero register
         Num(i32),                 // Immediate values
 
         // For sequences of instructions
         "seq" = Seq(Vec<Id>),
-        "nop" = Nop,
     }
 }
 
@@ -72,107 +78,134 @@ fn main() -> io::Result<()> {
     let input_content = fs::read_to_string(input_file)?;
 
     // Parse the input content into a RecExpr
-    let expr: RecExpr<MipsLang> = input_content.parse().unwrap();
+    let expr: RecExpr<RiscvLang> = input_content.parse().unwrap();
 
     println!("Initial program:\n{}", expr);
 
     // Define rewrite rules for optimization
-    let rules: &[Rewrite<MipsLang, ()>] = &[
-        // Arithmetic optimizations
+    let rules: &[Rewrite<RiscvLang, ()>] = &[
+        // === Arithmetic Optimizations ===
 
-        // Rule: Adding zero (add dest, src, zero) => mov dest, src
-        // If we add zero to a register, it's the same as moving the value
-        rw!("add-zero"; "(add ?dest ?src zero)" => "(mov ?dest ?src)"),
+        // Rule: Adding zero (add dest, src, 0) => addi dest, src, 0
+        rw!("add-zero"; "(add ?dest ?src 0)" => "(addi ?dest ?src 0)"),
 
-        // Rule: Adding zero (add dest, zero, src) => mov dest, src
-        // Commutative case
-        rw!("add-zero-comm"; "(add ?dest zero ?src)" => "(mov ?dest ?src)"),
+        // Rule: Subtracting zero (sub dest, src, 0) => addi dest, src, 0
+        rw!("sub-zero"; "(sub ?dest ?src 0)" => "(addi ?dest ?src 0)"),
 
-        // Rule: Subtracting zero (sub dest, src, zero) => mov dest, src
-        rw!("sub-zero"; "(sub ?dest ?src zero)" => "(mov ?dest ?src)"),
+        // Rule: Multiplying by zero (mul dest, src, 0) => addi dest, zero, 0
+        rw!("mul-zero"; "(mul ?dest ?src 0)" => "(addi ?dest zero 0)"),
 
-        // Rule: Adding immediate zero (addi dest, src, 0) => mov dest, src
-        rw!("addi-zero"; "(addi ?dest ?src 0)" => "(mov ?dest ?src)"),
+        // Rule: Multiplying by one (mul dest, src, 1) => addi dest, src, 0
+        rw!("mul-one"; "(mul ?dest ?src 1)" => "(addi ?dest ?src 0)"),
 
-        // Rule: Subtracting immediate zero (subi dest, src, 0) => mov dest, src
-        rw!("subi-zero"; "(subi ?dest ?src 0)" => "(mov ?dest ?src)"),
+        // Rule: Dividing by one (div dest, src, 1) => addi dest, src, 0
+        rw!("div-one"; "(div ?dest ?src 1)" => "(addi ?dest ?src 0)"),
+
+        // Rule: Dividing zero by any number (div dest, 0, src) => addi dest, zero, 0
+        rw!("div-zero"; "(div ?dest zero ?src)" => "(addi ?dest zero 0)"),
+
+        // Rule: Subtracting from zero (sub dest, zero, src) => neg dest, src
+        rw!("sub-zero-src"; "(sub ?dest zero ?src)" => "(neg ?dest ?src)"),
+
+        // Rule: Negating a value (neg dest, src) => sub dest, zero, src
+        rw!("neg-to-sub"; "(neg ?dest ?src)" => "(sub ?dest zero ?src)"),
+
+        // Rule: Incrementing (addi dest, src, 1) => inc dest, src
+        rw!("inc"; "(addi ?dest ?src 1)" => "(inc ?dest ?src)"),
+
+        // Rule: Decrementing (addi dest, src, -1) => dec dest, src
+        rw!("dec"; "(addi ?dest ?src -1)" => "(dec ?dest ?src)"),
+
+        // Rule: Adding negative immediate (addi dest, src, (- ?imm)) => addi dest, src, -imm
+        rw!("addi-neg-imm"; "(addi ?dest ?src (- ?imm))" => "(addi ?dest ?src (- ?imm))"),
 
         // Rule: Multiplying by 2 (mul dest, src, 2) => sll dest, src, 1
-        // Strength reduction optimization
         rw!("mul-by-2"; "(mul ?dest ?src 2)" => "(sll ?dest ?src 1)"),
 
-        // Rule: Dividing by 4 (div dest, src, 4) => srl dest, src, 2
-        rw!("div-by-4"; "(div ?dest ?src 4)" => "(srl ?dest ?src 2)"),
+        // Rule: Dividing by 4 (div dest, src, 4) => sra dest, src, 2
+        rw!("div-by-4"; "(div ?dest ?src 4)" => "(sra ?dest ?src 2)"),
 
-        // Rule: Shift left by zero (sll dest, src, 0) => mov dest, src
-        rw!("sll-zero"; "(sll ?dest ?src 0)" => "(mov ?dest ?src)"),
+        // === Logical Optimizations ===
 
-        // Rule: Move to self (mov dest, dest) => nop
-        rw!("mov-to-self"; "(mov ?dest ?dest)" => "nop"),
+        // Rule: ANDing with zero (and dest, src, 0) => addi dest, zero, 0
+        rw!("and-zero"; "(and ?dest ?src 0)" => "(addi ?dest zero 0)"),
 
-        // Logical optimizations
+        // Rule: ORing with zero (or dest, src, 0) => addi dest, src, 0
+        rw!("or-zero"; "(or ?dest ?src 0)" => "(addi ?dest ?src 0)"),
 
-        // Rule: ANDing with zero (and dest, src, zero) => li dest, 0
-        // Any value AND zero is zero
-        rw!("and-zero"; "(and ?dest ?src zero)" => "(li ?dest 0)"),
+        // Rule: XORing with zero (xor dest, src, 0) => addi dest, src, 0
+        rw!("xor-zero"; "(xor ?dest ?src 0)" => "(addi ?dest ?src 0)"),
 
-        // Rule: ANDing with -1 (and dest, src, -1) => mov dest, src
-        // Any value AND -1 (0xFFFFFFFF) is the value itself
-        rw!("and-minus-one"; "(and ?dest ?src -1)" => "(mov ?dest ?src)"),
+        // Rule: XORing a value with itself (xor dest, src, src) => addi dest, zero, 0
+        rw!("xor-same"; "(xor ?dest ?src ?src)" => "(addi ?dest zero 0)"),
 
-        // Rule: ORing with zero (or dest, src, zero) => mov dest, src
-        // Any value OR zero is the value itself
-        rw!("or-zero"; "(or ?dest ?src zero)" => "(mov ?dest ?src)"),
+        // Rule: NOT operation (not dest, src) => xori dest, src, -1
+        rw!("not-to-xori"; "(not ?dest ?src)" => "(xori ?dest ?src -1)"),
 
-        // Rule: XORing with zero (xor dest, src, zero) => mov dest, src
-        rw!("xor-zero"; "(xor ?dest ?src zero)" => "(mov ?dest ?src)"),
+        // Rule: Double NOT (not dest, (not _ ?src)) => addi dest, src, 0
+        rw!("double-not"; "(not ?dest (not _ ?src))" => "(addi ?dest ?src 0)"),
 
-        // Rule: XOR a value with itself (xor dest, src, src) => li dest, 0
-        // Any value XOR itself is zero
-        rw!("xor-same"; "(xor ?dest ?src ?src)" => "(li ?dest 0)"),
+        // === Shift Optimizations ===
 
-        // Rule: NOR a value with zero (nor dest, src, zero) => not dest, src
-        // Implemented using pseudo-instruction not
-        rw!("nor-zero"; "(nor ?dest ?src zero)" => "(not ?dest ?src)"),
+        // Rule: Shift left by zero (sll dest, src, 0) => addi dest, src, 0
+        rw!("sll-zero"; "(sll ?dest ?src 0)" => "(addi ?dest ?src 0)"),
 
-        // Comparison optimizations
+        // Rule: Shift right logical by zero (srl dest, src, 0) => addi dest, src, 0
+        rw!("srl-zero"; "(srl ?dest ?src 0)" => "(addi ?dest ?src 0)"),
 
-        // Rule: Set less than (slt dest, src, src) => li dest, 0
-        // A value is not less than itself
-        rw!("slt-same"; "(slt ?dest ?src ?src)" => "(li ?dest 0)"),
+        // Rule: Shift right arithmetic by zero (sra dest, src, 0) => addi dest, src, 0
+        rw!("sra-zero"; "(sra ?dest ?src 0)" => "(addi ?dest ?src 0)"),
 
-        // Data transfer optimizations
+        // === Immediate Optimizations ===
 
-        // Rule: Load immediate zero (li dest, 0) => mov dest, zero
-        rw!("li-zero"; "(li ?dest 0)" => "(mov ?dest zero)"),
+        // Rule: Load immediate zero (addi dest, zero, 0) => addi dest, zero, 0
+        rw!("load-zero"; "(addi ?dest zero 0)" => "(addi ?dest zero 0)"),
 
-        // Rule: Load upper immediate zero (lui dest, 0) => mov dest, zero
-        rw!("lui-zero"; "(lui ?dest 0)" => "(mov ?dest zero)"),
+        // Rule: Load upper immediate zero (lui dest, 0) => addi dest, zero, 0
+        rw!("lui-zero"; "(lui ?dest 0)" => "(addi ?dest zero 0)"),
 
-        // Miscellaneous optimizations
+        // === Branch Optimizations ===
 
-        // Rule: Remove nop from sequences
+        // Rule: Branch if equal to self (beq src, src, label) => jal zero, label
+        rw!("beq-same"; "(beq ?src ?src ?label)" => "(jal zero ?label)"),
+
+        // Rule: Branch if not equal to self (bne src, src, label) => nop
+        rw!("bne-same"; "(bne ?src ?src ?label)" => "nop"),
+
+        // === Data Transfer Optimizations ===
+
+        // Rule: Load word with zero offset (lw dest, (add addr, 0)) => lw dest, addr
+        rw!("lw-zero-offset"; "(lw ?dest (mem ?addr 0))" => "(lw ?dest ?addr)"),
+        
+        // Rule: Store word with zero offset (sw src, (add addr, 0)) => sw src, addr
+        rw!("sw-zero-offset"; "(sw ?src (mem ?addr 0))" => "(sw ?src ?addr)"),
+
+        // Rule: Load immediate to zero register (lw zero, _) => nop
+        rw!("lw-zero-reg"; "(lw zero ?addr)" => "nop"),
+
+        // Rule: Store from zero register (sw zero, _) => nop
+        rw!("sw-zero-reg"; "(sw zero ?addr)" => "nop"),
+
+        // === Miscellaneous Optimizations ===
+
+        // Rule: Remove NOPs from sequences
         rw!("remove-nop"; "(seq ?instrs* nop ?rest*)" => "(seq ?instrs* ?rest*)"),
 
-        // Rule: Remove redundant consecutive moves (mov dest, src followed by mov src, dest)
-        rw!("remove-redundant-mov"; "(seq ?prefix* (mov ?dest ?src) (mov ?src ?dest) ?suffix*)" => "(seq ?prefix* (mov ?dest ?src) ?suffix*)"),
+        // Rule: Remove redundant moves (addi dest, src, 0) where dest == src
+        rw!("remove-redundant-move"; "(addi ?dest ?dest 0)" => "nop"),
     ];
 
     // Run the rewrite rules using the Runner
     let runner = Runner::default()
         .with_expr(&expr)
-        .with_iter_limit(10) // Allow sufficient iterations
+        .with_iter_limit(10)
         .run(rules);
 
-    // Use an extractor with a cost function (e.g., AST size)
     let extractor = Extractor::new(&runner.egraph, AstSize);
-
-    // Find the best (optimized) expression
     let (best_cost, best_expr) = extractor.find_best(runner.roots[0]);
 
     println!("\nOptimized program (cost {}):\n{}", best_cost, best_expr);
 
-    // Write the optimized program to the output file
     let mut output = fs::File::create(output_file)?;
     write!(output, "{}", best_expr)?;
 
