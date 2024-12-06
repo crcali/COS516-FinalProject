@@ -11,7 +11,6 @@ fn remove_nops(input: &str) -> String {
     for line in input.lines() {
         let trimmed = line.trim();
 
-        // Skip standalone "nop"
         if trimmed == "nop" {
             continue;
         }
@@ -28,7 +27,6 @@ fn remove_nops(input: &str) -> String {
             open_parens_count += trimmed.matches('(').count();
             open_parens_count -= trimmed.matches(')').count();
 
-            // If parentheses are balanced, the sequence ends
             if open_parens_count == 0 {
                 let cleaned_sequence = clean_sequence(&seq_buffer);
                 cleaned_lines.push(cleaned_sequence);
@@ -40,7 +38,6 @@ fn remove_nops(input: &str) -> String {
         }
     }
 
-    // If we exit the loop while still in a sequence, ensure it is closed properly
     if in_seq {
         let cleaned_sequence = clean_sequence(&seq_buffer);
         cleaned_lines.push(cleaned_sequence);
@@ -51,16 +48,13 @@ fn remove_nops(input: &str) -> String {
 
 fn clean_sequence(seq: &str) -> String {
     let s = seq.trim();
-    // Ensure it starts with (seq and ends with )
     assert!(s.starts_with("(seq"));
     assert!(s.ends_with(')'));
 
-    // Remove the "(seq" prefix
     let inner = &s["(seq".len()..]; 
     let inner = inner.trim_start();
 
-    // Remove exactly one trailing ')', not all of them
-    let inner = &inner[..inner.len()-1]; // safely remove the last character which should be ')'
+    let inner = &inner[..inner.len()-1];
 
     let cleaned = inner
         .split_whitespace()
