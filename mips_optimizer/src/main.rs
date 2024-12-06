@@ -3,35 +3,74 @@ use std::fs;
 use std::io::{self, Write};
 
 fn remove_nops(input: &str) -> String {
-    let mut optimized_lines = Vec::new();
+    let mut cleaned_lines = Vec::new();
+    let mut seq_buffer = String::new();
+    let mut in_seq = false;
+    let mut open_parens_count = 0;
 
     for line in input.lines() {
         let trimmed = line.trim();
+
+        // Skip standalone "nop"
         if trimmed == "nop" {
             continue;
         }
 
         if trimmed.starts_with("(seq") {
-            let cleaned_sequence = clean_sequence(trimmed);
-            optimized_lines.push(cleaned_sequence);
+            in_seq = true;
+            seq_buffer.push_str(trimmed);
+            seq_buffer.push(' ');
+            open_parens_count += trimmed.matches('(').count();
+            open_parens_count -= trimmed.matches(')').count();
+        } else if in_seq {
+            seq_buffer.push_str(trimmed);
+            seq_buffer.push(' ');
+            open_parens_count += trimmed.matches('(').count();
+            open_parens_count -= trimmed.matches(')').count();
+
+            // If parentheses are balanced, the sequence ends
+            if open_parens_count == 0 {
+                let cleaned_sequence = clean_sequence(&seq_buffer);
+                cleaned_lines.push(cleaned_sequence);
+                seq_buffer.clear();
+                in_seq = false;
+            }
         } else {
-            optimized_lines.push(trimmed.to_string());
+            cleaned_lines.push(trimmed.to_string());
         }
     }
 
-    optimized_lines.join("\n")
+    // If we exit the loop while still in a sequence, ensure it is closed properly
+    if in_seq {
+        let cleaned_sequence = clean_sequence(&seq_buffer);
+        cleaned_lines.push(cleaned_sequence);
+    }
+
+    cleaned_lines.join("\n")
 }
 
 fn clean_sequence(seq: &str) -> String {
-    let cleaned = seq
-        .trim_start_matches("(seq")
-        .trim_end_matches(')')
+    let s = seq.trim();
+    // Ensure it starts with (seq and ends with )
+    assert!(s.starts_with("(seq"));
+    assert!(s.ends_with(')'));
+
+    // Remove the "(seq" prefix
+    let inner = &s["(seq".len()..]; 
+    let inner = inner.trim_start();
+
+    // Remove exactly one trailing ')', not all of them
+    let inner = &inner[..inner.len()-1]; // safely remove the last character which should be ')'
+
+    let cleaned = inner
         .split_whitespace()
         .filter(|&instr| instr != "nop")
         .collect::<Vec<&str>>()
         .join(" ");
+
     format!("(seq {})", cleaned)
 }
+
 
 define_language! {
     enum RiscvLang {
@@ -158,9 +197,6 @@ fn main() -> io::Result<()> {
 
         // Remove nop from sequences
         rw!("remove-nop"; "(seq ?instrs* nop ?rest*)" => "(seq ?instrs* ?rest*)"),
-
-        // Flatten nested sequences
-        rw!("flatten-seq"; "(seq ?instrs* (seq ?nested_instrs*) ?rest*)" => "(seq ?instrs* ?nested_instrs* ?rest*)"),
 
         // Remove (addi dest, dest, 0) -> nop
         rw!("addi-zero-self"; "(addi ?dest ?dest 0)" => "nop"),
