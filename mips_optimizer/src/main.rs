@@ -38,6 +38,7 @@ fn remove_nops(input: &str) -> String {
         }
     }
 
+    // If there's an unclosed sequence, finalize it.
     if in_seq {
         let cleaned_sequence = clean_sequence(&seq_buffer);
         cleaned_lines.push(cleaned_sequence);
@@ -51,10 +52,9 @@ fn clean_sequence(seq: &str) -> String {
     assert!(s.starts_with("(seq"));
     assert!(s.ends_with(')'));
 
-    let inner = &s["(seq".len()..]; 
+    let inner = &s["(seq".len()..];
     let inner = inner.trim_start();
-
-    let inner = &inner[..inner.len()-1];
+    let inner = &inner[..inner.len() - 1];
 
     let cleaned = inner
         .split_whitespace()
@@ -64,7 +64,6 @@ fn clean_sequence(seq: &str) -> String {
 
     format!("(seq {})", cleaned)
 }
-
 
 define_language! {
     enum RiscvLang {
@@ -117,7 +116,7 @@ define_language! {
 
         // Operands
         Var(Symbol),
-        Num(i32),
+        Num(i32),   // numeric literal node
 
         // Sequence and NOP
         "seq" = Seq(Vec<Id>),
@@ -234,28 +233,32 @@ fn main() -> io::Result<()> {
         // Merge consecutive addi instructions to the same dest
         //    e.g. (seq (addi x1 x2 5) (addi x1 x1 3) ...) => (seq (addi x1 x2 8) ...)
         rw!("fold-consecutive-addi";
-            "(seq (addi ?dest ?src (Num ?c1)) (addi ?dest ?dest (Num ?c2)) ?rest*)"
-            => "(seq (addi ?dest ?src (Num (+ ?c1 ?c2))) ?rest*)"
+            "(seq (addi ?dest ?src ?imm1) (addi ?dest ?dest ?imm2) ?rest*)"
+            =>
+            "(seq (addi ?dest ?src ?imm1) ?rest*)"
         ),
 
         // Fold sub-one: (sub ?dest ?src (Num 1)) => (addi ?dest ?src -1)
         rw!("fold-sub-one";
-            "(sub ?dest ?src (Num 1))"
-            => "(addi ?dest ?src -1)"
+            "(sub ?dest ?src 1)"
+            =>
+            "(addi ?dest ?src -1)"
         ),
 
         // Cancel out consecutive addi + addi with negative immediate:
         //    (seq (addi ?d ?s c) (addi ?d ?d -c)) => (seq)
         rw!("fold-addi-then-subi";
-            "(seq (addi ?dest ?src (Num ?c1)) (addi ?dest ?dest (Num ?c2)) ?rest*)"
-            => "(seq ?rest*)"
+            "(seq (addi ?dest ?src ?c1) (addi ?dest ?dest ?c2) ?rest*)"
+            =>
+            "(seq ?rest*)"
         ),
 
         // Fold lw/sw of the same register+address in direct sequence => no-op
         //    (seq (lw ?r ?addr) (sw ?r ?addr) ...) => just remove them
         rw!("fold-lw-sw-same-address";
             "(seq (lw ?r ?addr) (sw ?r ?addr) ?rest*)"
-            => "(seq ?rest*)"
+            =>
+            "(seq ?rest*)"
         ),
     ];
 
