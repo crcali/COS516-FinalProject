@@ -195,17 +195,6 @@ fn main() -> io::Result<()> {
         // Remove (addi dest, dest, 0) -> nop
         rw!("addi-zero-self"; "(addi ?dest ?dest 0)" => "nop"),
 
-        // Remove NOPs
-        rw!("remove-nop-seq-middle"; "(seq ?instrs* nop ?rest*)" => "(seq ?instrs* ?rest*)"),
-        rw!("remove-nop-seq-end"; "(seq ?instrs* nop)" => "(seq ?instrs*)"),
-        rw!("remove-standalone-nop"; "nop" => "(seq)"),
-
-        // Flatten nested sequences
-        rw!("flatten-seq"; "(seq ?instrs* (seq ?nested_instrs*) ?rest*)" => "(seq ?instrs* ?nested_instrs* ?rest*)"),
-
-        // Remove empty sequences from surrounding sequences
-        rw!("remove-empty-seq-from-seq"; "(seq ?instrs* (seq) ?rest*)" => "(seq ?instrs* ?rest*)"),
-
         // Replace top-level empty sequences with `nop`
         rw!("replace-top-empty-seq"; "(seq)" => "nop"),
 
@@ -237,6 +226,37 @@ fn main() -> io::Result<()> {
         rw!("auipc-zero-dest"; "(auipc x0 ?i)" => "nop"),
         rw!("slli-zero-dest"; "(slli x0 ?s ?i)" => "nop"),
         rw!("srli-zero-dest"; "(srli x0 ?s ?i)" => "nop"),
+
+        // XOR with x0 = move
+        rw!("xor-zero"; "(xor ?dest ?src x0)" => "(addi ?dest ?src 0)"),
+        rw!("xor-zero-commute"; "(xor ?dest x0 ?src)" => "(addi ?dest ?src 0)"),
+
+        // Merge consecutive addi instructions to the same dest
+        //    e.g. (seq (addi x1 x2 5) (addi x1 x1 3) ...) => (seq (addi x1 x2 8) ...)
+        rw!("fold-consecutive-addi";
+            "(seq (addi ?dest ?src (Num ?c1)) (addi ?dest ?dest (Num ?c2)) ?rest*)"
+            => "(seq (addi ?dest ?src (Num (+ ?c1 ?c2))) ?rest*)"
+        ),
+
+        // Fold sub-one: (sub ?dest ?src (Num 1)) => (addi ?dest ?src -1)
+        rw!("fold-sub-one";
+            "(sub ?dest ?src (Num 1))"
+            => "(addi ?dest ?src -1)"
+        ),
+
+        // Cancel out consecutive addi + addi with negative immediate:
+        //    (seq (addi ?d ?s c) (addi ?d ?d -c)) => (seq)
+        rw!("fold-addi-then-subi";
+            "(seq (addi ?dest ?src (Num ?c1)) (addi ?dest ?dest (Num ?c2)) ?rest*)"
+            => "(seq ?rest*)"
+        ),
+
+        // Fold lw/sw of the same register+address in direct sequence => no-op
+        //    (seq (lw ?r ?addr) (sw ?r ?addr) ...) => just remove them
+        rw!("fold-lw-sw-same-address";
+            "(seq (lw ?r ?addr) (sw ?r ?addr) ?rest*)"
+            => "(seq ?rest*)"
+        ),
     ];
 
     let runner = Runner::default()
